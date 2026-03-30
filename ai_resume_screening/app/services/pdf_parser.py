@@ -1,4 +1,5 @@
-import fitz  # PyMuPDF
+import pdfplumber
+import io
 import docx
 import re
 import logging
@@ -6,15 +7,15 @@ import logging
 logger = logging.getLogger(__name__)
 
 def extract_text_from_pdf(file_bytes: bytes) -> str:
-    """ Extract text directly from bytes using PyMuPDF. Clean hidden spaces. """
+    """ Extract text directly from bytes using pdfplumber. Clean hidden spaces. """
     text = ""
     try:
-        doc = fitz.open(stream=file_bytes, filetype="pdf")
-        for page in doc:
-            page_text = page.get_text("text")
+        pdf = pdfplumber.open(io.BytesIO(file_bytes))
+        for page in pdf.pages:
+            page_text = page.extract_text()
             if page_text:
                 text += page_text + "\n"
-        doc.close()
+        pdf.close()
     except Exception as e:
         logger.error(f"Error reading PDF: {e}")
     return clean_extracted_text(text)

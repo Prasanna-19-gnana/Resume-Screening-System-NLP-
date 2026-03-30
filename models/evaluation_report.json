@@ -1,0 +1,150 @@
+{
+    "dataset_size": 3,
+    "models": {
+        "RandomForest": {
+            "classification": {
+                "accuracy": 1.0,
+                "precision_macro": 1.0,
+                "recall_macro": 1.0,
+                "f1_macro": 1.0,
+                "confusion_matrix": [
+                    [
+                        1,
+                        0,
+                        0
+                    ],
+                    [
+                        0,
+                        1,
+                        0
+                    ],
+                    [
+                        0,
+                        0,
+                        1
+                    ]
+                ],
+                "classification_report": {
+                    "0": {
+                        "precision": 1.0,
+                        "recall": 1.0,
+                        "f1-score": 1.0,
+                        "support": 1.0
+                    },
+                    "1": {
+                        "precision": 1.0,
+                        "recall": 1.0,
+                        "f1-score": 1.0,
+                        "support": 1.0
+                    },
+                    "2": {
+                        "precision": 1.0,
+                        "recall": 1.0,
+                        "f1-score": 1.0,
+                        "support": 1.0
+                    },
+                    "accuracy": 1.0,
+                    "macro avg": {
+                        "precision": 1.0,
+                        "recall": 1.0,
+                        "f1-score": 1.0,
+                        "support": 3.0
+                    },
+                    "weighted avg": {
+                        "precision": 1.0,
+                        "recall": 1.0,
+                        "f1-score": 1.0,
+                        "support": 3.0
+                    }
+                }
+            },
+            "ranking": {
+                "mean_ndcg": 0.0,
+                "mrr": 0.0,
+                "precision@5": 0.0,
+                "recall@5": 0.0
+            },
+            "error_analysis": {
+                "false_positives": [],
+                "false_negatives": []
+            },
+            "regression": {
+                "mae": 11.933333333333335,
+                "rmse": 13.404725534924866,
+                "r2_score": 0.867444262295082
+            }
+        },
+        "LogisticRegression": {
+            "classification": {
+                "accuracy": 1.0,
+                "precision_macro": 1.0,
+                "recall_macro": 1.0,
+                "f1_macro": 1.0,
+                "confusion_matrix": [
+                    [
+                        1,
+                        0,
+                        0
+                    ],
+                    [
+                        0,
+                        1,
+                        0
+                    ],
+                    [
+                        0,
+                        0,
+                        1
+                    ]
+                ],
+                "classification_report": {
+                    "0": {
+                        "precision": 1.0,
+                        "recall": 1.0,
+                        "f1-score": 1.0,
+                        "support": 1.0
+                    },
+                    "1": {
+                        "precision": 1.0,
+                        "recall": 1.0,
+                        "f1-score": 1.0,
+                        "support": 1.0
+                    },
+                    "2": {
+                        "precision": 1.0,
+                        "recall": 1.0,
+                        "f1-score": 1.0,
+                        "support": 1.0
+                    },
+                    "accuracy": 1.0,
+                    "macro avg": {
+                        "precision": 1.0,
+                        "recall": 1.0,
+                        "f1-score": 1.0,
+                        "support": 3.0
+                    },
+                    "weighted avg": {
+                        "precision": 1.0,
+                        "recall": 1.0,
+                        "f1-score": 1.0,
+                        "support": 3.0
+                    }
+                }
+            },
+            "ranking": {
+                "mean_ndcg": 0.0,
+                "mrr": 0.0,
+                "precision@5": 0.0,
+                "recall@5": 0.0
+            }
+        },
+        "BaselineRuleBased": {
+            "classification": {
+                "accuracy": 1.0,
+                "precision_macro": 1.0,
+                "recall_macro": 1.0,
+                "f1_macro": 1.0
+            }
+        }
+    }
+}

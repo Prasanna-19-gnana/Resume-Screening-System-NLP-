@@ -1,0 +1,95 @@
+[
+    {
+        "id": "40c10678-fcab-45c2-a871-66df8075ff2b",
+        "job_description": "We need a strong Data Scientist with Python, PyTorch, and NLP experience. Experience with BERT is a must.",
+        "resume_text": "Senior Machine Learning Engineer with 5 years of Python experience. I have built diverse NLP models using PyTorch and specifically tuned BERT for classification tasks.",
+        "required_skills": [
+            "Python",
+            "PyTorch",
+            "NLP",
+            "BERT"
+        ],
+        "preferred_skills": [
+            "HuggingFace",
+            "AWS"
+        ],
+        "matched_skills_true": [
+            "Python",
+            "PyTorch",
+            "NLP",
+            "BERT"
+        ],
+        "missing_skills_true": [],
+        "fit_label": "good",
+        "fit_score_true": 95,
+        "features": {
+            "req_skill_coverage": 1.0,
+            "pref_skill_coverage": 0.0,
+            "total_matched_skills": 4.0,
+            "missing_req_skills": 0.0,
+            "semantic_similarity": 0.8325908184051514,
+            "resume_word_count": 25.0
+        }
+    },
+    {
+        "id": "07539984-5d8b-43c7-8bba-2cac80e694ee",
+        "job_description": "Looking for a Backend Developer. Required: FastAPI, PostgreSQL, Docker.",
+        "resume_text": "Backend Developer skilled in Flask, Python, and MySQL. Some exposure to Docker during college projects.",
+        "required_skills": [
+            "FastAPI",
+            "PostgreSQL",
+            "Docker"
+        ],
+        "preferred_skills": [
+            "Kubernetes",
+            "Redis"
+        ],
+        "matched_skills_true": [
+            "Docker"
+        ],
+        "missing_skills_true": [
+            "FastAPI",
+            "PostgreSQL"
+        ],
+        "fit_label": "medium",
+        "fit_score_true": 45,
+        "features": {
+            "req_skill_coverage": 0.3333333333333333,
+            "pref_skill_coverage": 0.0,
+            "total_matched_skills": 1.0,
+            "missing_req_skills": 2.0,
+            "semantic_similarity": 0.6720080375671387,
+            "resume_word_count": 15.0
+        }
+    },
+    {
+        "id": "8705b7a1-ca08-4772-84ec-5b11bc5fe47d",
+        "job_description": "Frontend Engineer skilled in React, TypeScript, and TailwindCSS.",
+        "resume_text": "Civil Engineer with 10 years of experience managing construction projects. Excellent AutoCAD skills and team leadership.",
+        "required_skills": [
+            "React",
+            "TypeScript",
+            "TailwindCSS"
+        ],
+        "preferred_skills": [
+            "Next.js",
+            "Figma"
+        ],
+        "matched_skills_true": [],
+        "missing_skills_true": [
+            "React",
+            "TypeScript",
+            "TailwindCSS"
+        ],
+        "fit_label": "poor",
+        "fit_score_true": 5,
+        "features": {
+            "req_skill_coverage": 0.0,
+            "pref_skill_coverage": 0.0,
+            "total_matched_skills": 0.0,
+            "missing_req_skills": 3.0,
+            "semantic_similarity": 0.4091585874557495,
+            "resume_word_count": 16.0
+        }
+    }
+]

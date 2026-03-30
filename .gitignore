@@ -52,3 +52,6 @@ Thumbs.db
 
 # Temp files
 *.tmp
+
+# Streamlit
+.streamlit/secrets.toml

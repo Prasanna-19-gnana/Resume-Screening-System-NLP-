@@ -1,9 +1,13 @@
 import streamlit as st
 import requests
 import pandas as pd
+import os
 from typing import List, Dict, Any
 
-API_URL = "http://localhost:8000/api/v1/screen/"
+# Configuration: Read API URLs from Streamlit secrets or environment variables
+# This allows the app to work both locally (localhost) and on Streamlit Cloud
+API_SERVICE_URL = st.secrets.get("api_service_url", os.getenv("API_SERVICE_URL", "http://localhost:8001"))
+
 ALLOWED_EXTENSIONS = ["pdf", "docx"]
 
 st.set_page_config(
@@ -87,8 +91,8 @@ def get_badge_html(fit_label: str) -> str:
         return f"<span class='badge-neutral'>🤷 {lbl}</span>"
 
 def send_request(job_role: str, job_description: str, resume_file, scorer_mode: str) -> Dict[str, Any]:
-    api_url_upload = "http://localhost:8001/upload-resume"
-    api_url_match = "http://localhost:8001/match"
+    api_url_upload = f"{API_SERVICE_URL}/upload-resume"
+    api_url_match = f"{API_SERVICE_URL}/match"
     
     try:
         # Step 1: Upload and Parse Document into Structured JSON

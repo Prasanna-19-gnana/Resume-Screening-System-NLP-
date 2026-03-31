@@ -25,6 +25,11 @@ from services.semantic_matcher_fixed import SemanticMatcher
 from services.role_detector_fixed import RoleDetector
 from services.scorer_fixed import create_scorer
 
+# Import ONTOLOGY components (NEW)
+from services.skill_ontology import SkillOntology
+from services.skill_matcher_ontology import OntologyAwareSkillMatcher
+from services.scorer_upgraded import create_upgraded_scorer
+
 # ==========================================
 # PAGE CONFIGURATION
 # ==========================================
@@ -95,12 +100,30 @@ def load_role_detector():
     return RoleDetector()
 
 @st.cache_resource
+def load_skill_ontology():
+    """Cache the skill ontology"""
+    return SkillOntology()
+
+@st.cache_resource
+def load_ontology_matcher():
+    """Cache the ontology-aware skill matcher"""
+    return OntologyAwareSkillMatcher()
+
+@st.cache_resource
 def load_scorer():
-    """Cache the scorer with all dependencies"""
+    """Cache the UPGRADED scorer with ontology-aware matching"""
     skill_ext = load_skill_extractor()
     semantic_match = load_semantic_matcher()
     role_detect = load_role_detector()
-    return create_scorer(skill_ext, semantic_match, role_detect)
+    ontology_match = load_ontology_matcher()
+    
+    # Use upgraded scorer with ontology support
+    return create_upgraded_scorer(
+        skill_extractor=skill_ext,
+        semantic_matcher=semantic_match,
+        role_detector=role_detect,
+        ontology_matcher=ontology_match
+    )
 
 # Initialize session state for caching results
 if "resume_cache" not in st.session_state:

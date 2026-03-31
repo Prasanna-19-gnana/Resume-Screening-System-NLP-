@@ -18,10 +18,12 @@ sys.path.insert(0, str(Path(__file__).parent / "ai_resume_screening" / "app"))
 from services.pdf_parser import extract_text_from_pdf, extract_text_from_docx
 from services.section_extractor import extract_sections
 from services.resume_builder import build_smart_resume_text
-from services.scorer import scorer_service
-from services.skill_extractor import SkillExtractor
-from services.semantic_matcher import SemanticMatcher
-from services.role_classifier import role_classifier_svc
+
+# Import FIXED components
+from services.skill_extractor_fixed import SkillExtractor
+from services.semantic_matcher_fixed import SemanticMatcher
+from services.role_detector_fixed import RoleDetector
+from services.scorer_fixed import create_scorer
 
 # ==========================================
 # PAGE CONFIGURATION
@@ -79,13 +81,26 @@ st.markdown("""
 # ==========================================
 @st.cache_resource
 def load_skill_extractor():
-    """Cache the skill extractor to avoid reloading"""
+    """Cache the skill extractor"""
     return SkillExtractor()
 
 @st.cache_resource
 def load_semantic_matcher():
-    """Cache the semantic matcher to avoid reloading embeddings repeatedly"""
+    """Cache the semantic matcher"""
     return SemanticMatcher()
+
+@st.cache_resource
+def load_role_detector():
+    """Cache the role detector"""
+    return RoleDetector()
+
+@st.cache_resource
+def load_scorer():
+    """Cache the scorer with all dependencies"""
+    skill_ext = load_skill_extractor()
+    semantic_match = load_semantic_matcher()
+    role_detect = load_role_detector()
+    return create_scorer(skill_ext, semantic_match, role_detect)
 
 # Initialize session state for caching results
 if "resume_cache" not in st.session_state:
@@ -131,9 +146,12 @@ def screen_resume(
         # Build semantic text for embeddings
         smart_resume_text = build_smart_resume_text(parsed_resume)
         
-        # Run the AI scorer (3-layer hybrid scoring)
-        result = scorer_service.score_candidate(
-            parsed_resume_dict=parsed_resume,
+        # Get scorer instance
+        scorer = load_scorer()
+        
+        # Run the AI scorer (3-layer hybrid scoring with FIXED logic)
+        result = scorer.score_candidate(
+            parsed_resume=parsed_resume,
             job_role=job_role,
             requirements=requirements,
             job_description=job_description,
@@ -144,6 +162,8 @@ def screen_resume(
         
     except Exception as e:
         st.error(f"❌ Scoring error: {e}")
+        import traceback
+        traceback.print_exc()
         return None
 
 def get_recommendation_color(score: float) -> str:
@@ -186,23 +206,37 @@ def render_header():
 def render_result_card(result: Dict[str, Any], filename: str):
     """Render a beautiful result card with detailed breakdown"""
     
-    final_score = result.get("final_score", 0.0)
-    recommendation = get_recommendation_text(final_score)
-    badge_type = get_recommendation_color(final_score)
+    final_score = result.get("final_score", 0)  # Now 0-100
+    recommendation = result.get("recommendation", "UNKNOWN")
+    confidence = result.get("confidence", "Unknown")
+    detected_role = result.get("detected_role", "Unknown")
+    
+    # Badge color based on score
+    if final_score >= 80:
+        badge_color = "excellent"
+        badge_text = "🌟 STRONG"
+    elif final_score >= 65:
+        badge_color = "good"
+        badge_text = "✅ GOOD"
+    elif final_score >= 50:
+        badge_color = "moderate"
+        badge_text = "⚡ MODERATE"
+    else:
+        badge_color = "weak"
+        badge_text = "⚠️ WEAK"
     
     with st.container():
         col1, col2, col3 = st.columns([2, 1, 1])
         
         with col1:
             st.markdown(f"### 📄 {filename}")
-            st.markdown(f"<span class='badge-{badge_type}'>{recommendation}</span>", unsafe_allow_html=True)
+            st.markdown(f"<span class='badge-{badge_color}'>{badge_text}</span>", unsafe_allow_html=True)
         
         with col2:
-            st.metric("Final Score", f"{final_score * 100:.1f}/100")
+            st.metric("Final Score", f"{final_score:.1f}/100")
         
         with col3:
-            pred_role = result.get("predicted_resume_role", "Unknown")
-            st.metric("Detected Role", pred_role)
+            st.metric("Detected Role", detected_role)
         
         st.divider()
         
@@ -211,23 +245,24 @@ def render_result_card(result: Dict[str, Any], filename: str):
         
         with tab1:
             st.markdown("**Recommendation**")
-            st.info(result.get("recommendation", "N/A"))
+            st.info(recommendation)
+            st.write(f"**Confidence:** {confidence}")
             
             col_a, col_b, col_c = st.columns(3)
             with col_a:
                 st.metric(
                     "Semantic Similarity",
-                    f"{result.get('semantic_similarity_score', 0.0) * 100:.1f}%"
+                    f"{result.get('semantic_similarity_score', 0):.1f}%"
                 )
             with col_b:
                 st.metric(
                     "Skill Match",
-                    f"{result.get('skill_match_score', 0.0) * 100:.1f}%"
+                    f"{result.get('skill_match_score', 0):.1f}%"
                 )
             with col_c:
                 st.metric(
                     "Role Alignment",
-                    f"{result.get('role_alignment_score', 0.0) * 100:.1f}%"
+                    f"{result.get('role_alignment_score', 0):.1f}%"
                 )
         
         with tab2:
@@ -242,7 +277,7 @@ def render_result_card(result: Dict[str, Any], filename: str):
                     if len(matched) > 10:
                         st.write(f"_... and {len(matched) - 10} more_")
                 else:
-                    st.write("None detected")
+                    st.write("None matched")
             
             with col_miss:
                 st.markdown("**❌ Missing Skills**")
@@ -253,32 +288,32 @@ def render_result_card(result: Dict[str, Any], filename: str):
                     if len(missing) > 10:
                         st.write(f"_... and {len(missing) - 10} more_")
                 else:
-                    st.write("All required skills present!")
+                    st.write("All required skills present! ✨")
         
         with tab3:
             st.markdown("**Detailed Score Breakdown**")
             breakdown_data = {
                 "Component": ["Semantic Similarity", "Skill Matching", "Role Alignment"],
                 "Score": [
-                    result.get("semantic_similarity_score", 0.0),
-                    result.get("skill_match_score", 0.0),
-                    result.get("role_alignment_score", 0.0)
+                    result.get("semantic_similarity_score", 0),
+                    result.get("skill_match_score", 0),
+                    result.get("role_alignment_score", 0)
                 ],
-                "Weight": [0.40, 0.35, 0.25]
+                "Weight": [40, 40, 20]
             }
             df_breakdown = pd.DataFrame(breakdown_data)
-            df_breakdown["Weighted Score"] = df_breakdown["Score"] * df_breakdown["Weight"]
+            df_breakdown["Contribution"] = (df_breakdown["Score"] * df_breakdown["Weight"] / 100).round(1)
             
             st.dataframe(df_breakdown, use_container_width=True, hide_index=True)
         
         with tab4:
             st.markdown("**Section Similarities**")
             metrics_data = {
-                "Section": ["Skills", "Projects", "Experience"],
+                "Section": ["Skills", "Experience", "Projects"],
                 "Similarity": [
-                    result.get("skills_similarity", 0.0),
-                    result.get("projects_similarity", 0.0),
-                    result.get("experience_similarity", 0.0)
+                    result.get("skills_similarity", 0),
+                    result.get("experience_similarity", 0),
+                    result.get("projects_similarity", 0)
                 ]
             }
             df_metrics = pd.DataFrame(metrics_data)
@@ -394,12 +429,12 @@ def main():
         for result in results_list:
             export_data.append({
                 "Filename": result.get("filename", "Unknown"),
-                "Final Score": round(result.get("final_score", 0.0) * 100, 2),
+                "Final Score": round(result.get("final_score", 0), 2),
                 "Recommendation": result.get("recommendation", "N/A"),
-                "Detected Role": result.get("predicted_resume_role", "Unknown"),
-                "Semantic Score": round(result.get("semantic_similarity_score", 0.0) * 100, 2),
-                "Skill Score": round(result.get("skill_match_score", 0.0) * 100, 2),
-                "Role Alignment": round(result.get("role_alignment_score", 0.0) * 100, 2),
+                "Detected Role": result.get("detected_role", "Unknown"),
+                "Semantic Score": round(result.get("semantic_similarity_score", 0), 2),
+                "Skill Score": round(result.get("skill_match_score", 0), 2),
+                "Role Alignment": round(result.get("role_alignment_score", 0), 2),
                 "Matched Skills": len(result.get("matched_skills", [])),
                 "Missing Skills": len(result.get("missing_skills", []))
             })

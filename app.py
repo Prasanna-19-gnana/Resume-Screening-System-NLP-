@@ -30,6 +30,10 @@ from services.skill_ontology import SkillOntology
 from services.skill_matcher_ontology import OntologyAwareSkillMatcher
 from services.scorer_upgraded import create_upgraded_scorer
 
+# Import CONTEXT-AWARE & MULTI-RESUME components (LATEST)
+from services.context_matcher import ContextAwareMatcher
+from services.multi_resume_ranker import MultiResumeRanker
+
 # ==========================================
 # PAGE CONFIGURATION
 # ==========================================
@@ -123,6 +127,24 @@ def load_scorer():
         semantic_matcher=semantic_match,
         role_detector=role_detect,
         ontology_matcher=ontology_match
+    )
+
+@st.cache_resource
+def load_context_matcher():
+    """Cache the context-aware matcher"""
+    return ContextAwareMatcher()
+
+@st.cache_resource
+def load_multi_resume_ranker():
+    """Cache the multi-resume ranker"""
+    scorer = load_scorer()
+    context_match = load_context_matcher()
+    skill_ext = load_skill_extractor()
+    
+    return MultiResumeRanker(
+        scorer=scorer,
+        context_matcher=context_match,
+        skill_extractor=skill_ext
     )
 
 # Initialize session state for caching results
@@ -226,8 +248,8 @@ def render_header():
     </div>
     """, unsafe_allow_html=True)
 
-def render_result_card(result: Dict[str, Any], filename: str):
-    """Render a beautiful result card with detailed breakdown"""
+def render_result_card(result: Dict[str, Any], filename: str, rank: int = 0):
+    """Render a beautiful result card with detailed breakdown and evidence"""
     
     final_score = result.get("final_score", 0)  # Now 0-100
     recommendation = result.get("recommendation", "UNKNOWN")
@@ -248,6 +270,14 @@ def render_result_card(result: Dict[str, Any], filename: str):
         badge_color = "weak"
         badge_text = "⚠️ WEAK"
     
+    # Display rank if provided
+    if rank > 0:
+        col_rank, col_score = st.columns([1, 5])
+        with col_rank:
+            st.markdown(f"### Rank #{rank}")
+        with col_score:
+            st.markdown(f"**{filename}** - Score: **{final_score:.1f}/100**")
+    
     with st.container():
         col1, col2, col3 = st.columns([2, 1, 1])
         
@@ -262,6 +292,29 @@ def render_result_card(result: Dict[str, Any], filename: str):
             st.metric("Detected Role", detected_role)
         
         st.divider()
+        
+        # Display context-aware evidence if available
+        if result.get("strong_evidence") or result.get("evidence_summary"):
+            with st.expander("📝 Evidence & Context Matching", expanded=False):
+                st.markdown("**Why this candidate matches:**")
+                st.info(result.get("evidence_summary", "N/A"))
+                
+                if result.get("strong_evidence"):
+                    st.markdown("**Top Matching Sections:**")
+                    for i, evidence in enumerate(result.get("strong_evidence", []), 1):
+                        col1, col2 = st.columns([4, 1])
+                        with col1:
+                            st.write(f"**[{i}]** {evidence.get('sentence', '')[:120]}...")
+                        with col2:
+                            relevance = evidence.get('relevance', 'N/A')
+                            st.write(f"📊 {relevance}")
+                
+                # Coverage metric
+                if result.get("coverage_score"):
+                    coverage_val = float(result.get("coverage_score", "0%").strip("%")) / 100
+                    st.progress(coverage_val, text=f"Coverage: {result.get('coverage_score')}")
+            
+            st.divider()
         
         # Tabs for deep analysis
         tab1, tab2, tab3, tab4 = st.tabs(["🎯 Overview", "🔧 Skills", "📊 Breakdown", "📈 Metrics"])
@@ -395,54 +448,64 @@ def main():
             st.info("👈 Upload resumes from the sidebar to get started")
             return
         
-        # Process uploaded resumes
+        # Process uploaded resumes using multi-resume ranker
         st.markdown("---")
         st.markdown(f"### 📊 Screening Results ({len(uploaded_files)} resume{'s' if len(uploaded_files) != 1 else ''})")
         
-        results_list = []
+        # Prepare resume data for ranker
+        resumes_data = []
         progress_bar = st.progress(0)
         status_text = st.empty()
         
         for idx, uploaded_file in enumerate(uploaded_files):
-            status_text.text(f"Processing {idx + 1}/{len(uploaded_files)}: {uploaded_file.name}...")
+            status_text.text(f"Parsing {idx + 1}/{len(uploaded_files)}: {uploaded_file.name}...")
             progress_bar.progress((idx + 1) / len(uploaded_files))
             
             # Parse resume
             text, sections = parse_resume(uploaded_file)
-            if text is None or sections is None:
+            if text is None:
                 st.error(f"Failed to parse {uploaded_file.name}")
                 continue
             
-            # Screen resume
-            result = screen_resume(
-                parsed_resume=sections,
-                job_role=job_role,
-                job_description=job_description,
-                requirements=requirements
-            )
-            
-            if result is not None:
-                result["filename"] = uploaded_file.name
-                results_list.append(result)
+            resumes_data.append({
+                "name": uploaded_file.name,
+                "text": text
+            })
         
         status_text.empty()
         progress_bar.empty()
         
-        if not results_list:
-            st.error("No resumes were successfully processed.")
+        if not resumes_data:
+            st.error("No resumes were successfully parsed.")
             return
         
-        # Sort by final score (descending)
-        results_list = sorted(
-            results_list,
-            key=lambda x: x.get("final_score", 0.0),
-            reverse=True
-        )
+        # Use multi-resume ranker
+        with st.spinner("🔍 Evaluating and ranking resumes..."):
+            ranker = load_multi_resume_ranker()
+            ranking_result = ranker.rank_resumes(
+                resumes_data=resumes_data,
+                job_role=job_role,
+                requirements=requirements,
+                job_description=job_description
+            )
         
-        # Display results
-        for idx, result in enumerate(results_list, 1):
-            st.markdown(f"#### Rank #{idx}")
-            render_result_card(result, result["filename"])
+        results_list = ranking_result["ranked_results"]
+        
+        # Display ranking summary
+        st.markdown("### 🏆 Ranking Summary")
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.metric("Top Candidate", ranking_result["summary"]["top_candidate"])
+        with col2:
+            st.metric("Top Score", f"{ranking_result['summary']['top_score']:.1f}/100")
+        with col3:
+            st.metric("Average Score", f"{ranking_result['summary']['average_score']:.1f}/100")
+        
+        st.info(ranking_result["summary"]["recommendation"])
+        
+        # Display results with ranking
+        for result in results_list:
+            render_result_card(result, result["resume_name"], rank=result.get("rank", 0))
             st.markdown("---")
         
         # Export results
@@ -451,15 +514,17 @@ def main():
         export_data = []
         for result in results_list:
             export_data.append({
-                "Filename": result.get("filename", "Unknown"),
+                "Rank": result.get("rank", 0),
+                "Filename": result.get("resume_name", "Unknown"),
                 "Final Score": round(result.get("final_score", 0), 2),
                 "Recommendation": result.get("recommendation", "N/A"),
                 "Detected Role": result.get("detected_role", "Unknown"),
-                "Semantic Score": round(result.get("semantic_similarity_score", 0), 2),
-                "Skill Score": round(result.get("skill_match_score", 0), 2),
-                "Role Alignment": round(result.get("role_alignment_score", 0), 2),
-                "Matched Skills": len(result.get("matched_skills", [])),
+                "Semantic Score": round(result.get("semantic_score", 0), 2),
+                "Skill Score": round(result.get("skill_score", 0), 2),
+                "Role Alignment": round(result.get("role_score", 0), 2),
+                "Matched Skills": result.get("num_skills_matched", 0),
                 "Missing Skills": len(result.get("missing_skills", []))
+            })
             })
         
         df_export = pd.DataFrame(export_data)

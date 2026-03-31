@@ -1,0 +1,27 @@
+{
+  "model_name": "RandomForest",
+  "params": {
+    "n_estimators": 100,
+    "max_depth": 10,
+    "min_samples_split": 5,
+    "min_samples_leaf": 2,
+    "random_state": 42,
+    "n_jobs": -1,
+    "verbose": 1
+  },
+  "feature_importances": {
+    "semantic_similarity_score": 0.0,
+    "skills_exact_match_ratio": 0.2801165660779305,
+    "skills_partial_match_ratio": 0.0,
+    "role_alignment_score": 0.0,
+    "number_of_matched_skills": 0.15018069149427282,
+    "number_of_missing_skills": 0.5697027424277966,
+    "top_sentence_similarity": 0.0
+  },
+  "train_mae": 0.15163013848529813,
+  "train_rmse": 0.2083231728421673,
+  "train_r2": 0.42933445090629063,
+  "val_mae": 0.19390077874335282,
+  "val_rmse": 0.24052388061634672,
+  "val_r2": 0.20947052996342497
+}

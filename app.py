@@ -525,7 +525,6 @@ def main():
                 "Matched Skills": result.get("num_skills_matched", 0),
                 "Missing Skills": len(result.get("missing_skills", []))
             })
-            })
         
         df_export = pd.DataFrame(export_data)
         

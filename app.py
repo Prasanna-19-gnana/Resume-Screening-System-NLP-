@@ -115,7 +115,7 @@ def load_ontology_matcher():
 
 @st.cache_resource
 def load_scorer():
-    """Cache the UPGRADED scorer with ontology-aware matching"""
+    """Load the UPGRADED scorer with ontology-aware matching"""
     skill_ext = load_skill_extractor()
     semantic_match = load_semantic_matcher()
     role_detect = load_role_detector()
@@ -131,15 +131,17 @@ def load_scorer():
 
 @st.cache_resource
 def load_context_matcher():
-    """Cache the context-aware matcher"""
+    """Load the context-aware matcher"""
     return ContextAwareMatcher()
 
 @st.cache_resource
 def load_multi_resume_ranker():
-    """Cache the multi-resume ranker"""
+    """Cache the multi-resume ranker dynamically to ensure fresh code paths"""
     scorer = load_scorer()
     context_match = load_context_matcher()
     skill_ext = load_skill_extractor()
+    
+    from services.multi_resume_ranker import MultiResumeRanker
     
     return MultiResumeRanker(
         scorer=scorer,
@@ -448,47 +450,62 @@ def main():
             st.info("👈 Upload resumes from the sidebar to get started")
             return
         
-        # Process uploaded resumes using multi-resume ranker
         st.markdown("---")
-        st.markdown(f"### 📊 Screening Results ({len(uploaded_files)} resume{'s' if len(uploaded_files) != 1 else ''})")
         
-        # Prepare resume data for ranker
-        resumes_data = []
-        progress_bar = st.progress(0)
-        status_text = st.empty()
+        run_screening = st.button("🚀 Execute Screening", type="primary", use_container_width=True)
         
-        for idx, uploaded_file in enumerate(uploaded_files):
-            status_text.text(f"Parsing {idx + 1}/{len(uploaded_files)}: {uploaded_file.name}...")
-            progress_bar.progress((idx + 1) / len(uploaded_files))
-            
-            # Parse resume
-            text, sections = parse_resume(uploaded_file)
-            if text is None:
-                st.error(f"Failed to parse {uploaded_file.name}")
-                continue
-            
-            resumes_data.append({
-                "name": uploaded_file.name,
-                "text": text
-            })
-        
-        status_text.empty()
-        progress_bar.empty()
-        
-        if not resumes_data:
-            st.error("No resumes were successfully parsed.")
+        if not run_screening and "ranking_result" not in st.session_state:
+            st.info("👈 Upload resumes and click **Execute Screening** to process candidates")
             return
+            
+        if run_screening:
+            # Clear previous cache to force re-run
+            if "ranking_result" in st.session_state:
+                del st.session_state["ranking_result"]
+                
+            st.markdown(f"### 📊 Screening Results ({len(uploaded_files)} resume{'s' if len(uploaded_files) != 1 else ''})")
         
-        # Use multi-resume ranker
-        with st.spinner("🔍 Evaluating and ranking resumes..."):
-            ranker = load_multi_resume_ranker()
-            ranking_result = ranker.rank_resumes(
-                resumes_data=resumes_data,
-                job_role=job_role,
-                requirements=requirements,
-                job_description=job_description
-            )
-        
+        if "ranking_result" not in st.session_state:
+            # Prepare resume data for ranker
+            resumes_data = []
+            progress_bar = st.progress(0)
+            status_text = st.empty()
+            
+            for idx, uploaded_file in enumerate(uploaded_files):
+                status_text.text(f"Parsing {idx + 1}/{len(uploaded_files)}: {uploaded_file.name}...")
+                progress_bar.progress((idx + 1) / len(uploaded_files))
+                
+                # Parse resume
+                text, sections = parse_resume(uploaded_file)
+                if text is None:
+                    st.error(f"Failed to parse {uploaded_file.name}")
+                    continue
+                
+                resumes_data.append({
+                    "name": uploaded_file.name,
+                    "text": text
+                })
+            
+            status_text.empty()
+            progress_bar.empty()
+            
+            if not resumes_data:
+                st.error("No resumes were successfully parsed.")
+                return
+            
+            # Use multi-resume ranker
+            with st.spinner("🔍 Evaluating and ranking resumes..."):
+                ranker = load_multi_resume_ranker()
+                ranking_result = ranker.rank_resumes(
+                    resumes_data=resumes_data,
+                    job_role=job_role,
+                    requirements=requirements,
+                    job_description=job_description
+                )
+                
+            st.session_state["ranking_result"] = ranking_result
+            
+        ranking_result = st.session_state["ranking_result"]
         results_list = ranking_result["ranked_results"]
         
         # Display ranking summary

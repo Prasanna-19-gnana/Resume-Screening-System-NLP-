@@ -179,10 +179,12 @@ def render_candidate_card(result: Dict[str, Any], rank: int):
         m1, m2, m3 = st.columns(3)
         m1.metric("Final Combined Score", f"{final_score * 100:.1f} / 100")
         
-        if scorer_mode in ["compare", "ml"]:
-            m2.metric("ML Neural Prediction", f"{ml_score * 100:.1f} / 100")
-        if scorer_mode in ["baseline", "compare"]:
-            m3.metric("Baseline Heuristics", f"{baseline_score * 100:.1f} / 100")
+        # Pull new deep metrics directly from JSON instead of old ML/Baseline buckets
+        r_align = float(result.get("role_alignment_score") or 0.0)
+        sem_score = float(result.get("semantic_similarity_score") or 0.0)
+        
+        m2.metric("Overall Semantic Similarity", f"{sem_score * 100:.1f} / 100")
+        m3.metric("Role Alignment Projection", f"{r_align * 100:.1f} / 100")
             
         st.divider()
         
@@ -235,21 +237,33 @@ def render_candidate_card(result: Dict[str, Any], rank: int):
 
         with tab_insights:
             c_ins1, c_ins2 = st.columns(2)
+            
+            # Dynamically derive insights from exact numerical components since flat text was deprecated
+            s_dyn = []
+            w_dyn = []
+            
+            if raw_sk > 0.85: s_dyn.append("Exceptional explicit technological/skill fit.")
+            elif raw_sk < 0.40: w_dyn.append("Lacking required core technical competencies.")
+                
+            if raw_sem > 0.65: s_dyn.append("Strong semantic overlap with job responsibilities.")
+            elif raw_sem < 0.30: w_dyn.append("Low overall semantic similarity to the job description.")
+                
+            if raw_role > 0.80: s_dyn.append("Candidate's detected role directly aligns with the target.")
+            elif raw_role < 0.35: w_dyn.append("Candidate background implies severe domain misalignment.")
+                
             with c_ins1:
                 st.markdown("#### ✅ Candidate Strengths")
-                strengths = result.get("strengths") or []
-                if not strengths:
+                if not s_dyn:
                     st.markdown("_No specific outstanding strengths detected._")
                 else:
-                    for s in strengths:
+                    for s in s_dyn:
                         st.markdown(f"- {s}")
             with c_ins2:
                 st.markdown("#### ⚠️ Potential Weaknesses")
-                weak_areas = result.get("weak_areas") or []
-                if not weak_areas:
+                if not w_dyn:
                     st.markdown("_No critical weak areas detected._")
                 else:
-                    for w in weak_areas:
+                    for w in w_dyn:
                         st.markdown(f"- {w}")
 
 # ==========================================
@@ -315,45 +329,60 @@ if run_screening:
                 else:
                     results.append(response_data)
                     
-        # Render feedback
-        if errors:
-            for err in errors:
-                st.error(err)
-                
-        if results:
-            sorted_results = sort_results(results)
+        # Save to persist state!
+        st.session_state.screening_results = results
+        st.session_state.screening_errors = errors
+        st.session_state.last_scorer_mode = scorer_mode
+
+# RENDER PERSISTENT STATE
+if "screening_results" in st.session_state:
+    results = st.session_state.screening_results
+    errors = st.session_state.screening_errors
+    scorer_mode = st.session_state.last_scorer_mode
+    
+    # Render feedback
+    if errors:
+        for err in errors:
+            st.error(err)
             
+    if results:
+        sorted_results = sort_results(results)
+        
+        col1, col2 = st.columns([4, 1])
+        with col1:
             st.markdown("## 📋 Candidates Overview")
+        with col2:
+            st.markdown("<br>", unsafe_allow_html=True)
+            if st.button("🔄 Clear & Restart", type="secondary", use_container_width=True):
+                del st.session_state["screening_results"]
+                st.rerun()
+        
+        # Construct DataFrame carefully
+        table_data = []
+        for res in sorted_results:
+            row = {
+                "Name / File": res.get("candidate_name") or res.get("filename") or "Unknown",
+                "Final Score": f"{float(res.get('final_score') or 0.0) * 100:.1f}"
+            }
             
-            # Construct DataFrame carefully
-            table_data = []
-            for res in sorted_results:
-                row = {
-                    "Name / File": res.get("candidate_name") or res.get("filename") or "Unknown",
-                    "Score (Pts)": f"{float(res.get('final_score') or 0.0) * 100:.1f}"
-                }
+            row["AI Role Prediction"] = (res.get("fit_label_prediction") or "unknown").upper()
+            row["Role Match Prob"] = f"{float(res.get('role_alignment_score') or 0.0) * 100:.1f}%"
                 
-                if scorer_mode in ["compare", "ml"]:
-                    row["AI Prediction"] = (res.get("fit_label_prediction") or "unknown").upper()
-                    
-                if scorer_mode in ["baseline", "compare"]:
-                    row["Baseline"] = f"{float(res.get('baseline_score') or 0.0) * 100:.1f}"
-                    
-                matched = res.get("matched_skills") or []
-                missing = res.get("missing_skills") or []
-                
-                row["Skills Met"] = len(matched)
-                row["Skills Missing"] = len(missing)
-                
-                table_data.append(row)
-                
-            df = pd.DataFrame(table_data)
-            df.index = df.index + 1 
+            matched = res.get("matched_skills") or []
+            missing = res.get("missing_skills") or []
             
-            st.dataframe(df, use_container_width=True)
+            row["Skills Met"] = len(matched)
+            row["Skills Missing"] = len(missing)
             
-            st.divider()
+            table_data.append(row)
             
-            st.markdown("## 🔍 Deep Dive Analysis")
-            for rank, result in enumerate(sorted_results, 1):
-                render_candidate_card(result, rank)
+        df = pd.DataFrame(table_data)
+        df.index = df.index + 1 
+        
+        st.dataframe(df, use_container_width=True)
+        
+        st.divider()
+        
+        st.markdown("## 🔍 Deep Dive Analysis")
+        for rank, result in enumerate(sorted_results, 1):
+            render_candidate_card(result, rank)

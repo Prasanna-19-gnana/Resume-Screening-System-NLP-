@@ -91,11 +91,21 @@ class MultiResumeRanker:
             ] if "partial_matches" in ai_score else [],
             "missing_skills": ai_score["missing_skills"],
             
-            # Score breakdown
-            "semantic_score": ai_score["semantic_similarity_score"],
-            "skill_score": ai_score["skill_match_score"],
-            "role_score": ai_score["role_alignment_score"],
-            "detected_role": ai_score["detected_role"],
+            # Score breakdown explicitly mapping what frontend expects
+            "semantic_similarity_score": ai_score.get("semantic_similarity_score", 0),
+            "skill_match_score": ai_score.get("skill_match_score", 0),
+            "role_alignment_score": ai_score.get("role_alignment_score", 0),
+            
+            # Legacy fields for CSV backward compatibility
+            "semantic_score": ai_score.get("semantic_similarity_score", 0),
+            "skill_score": ai_score.get("skill_match_score", 0),
+            "role_score": ai_score.get("role_alignment_score", 0),
+            "detected_role": ai_score.get("detected_role", "Unknown"),
+            
+            # Sub-similarities dynamically unpacked
+            "skills_similarity": ai_score.get("skills_similarity", 0),
+            "experience_similarity": ai_score.get("experience_similarity", 0),
+            "projects_similarity": ai_score.get("projects_similarity", 0),
             
             # Context-aware evidence
             "strong_evidence": [

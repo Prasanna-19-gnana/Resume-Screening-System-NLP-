@@ -9,6 +9,11 @@ import re
 import logging
 from typing import List, Tuple, Set, Dict
 
+try:
+    from .skill_ontology import SKILL_ONTOLOGY
+except ImportError:
+    from skill_ontology import SKILL_ONTOLOGY
+
 logger = logging.getLogger(__name__)
 
 # Comprehensive skill normalization mapping
@@ -88,6 +93,14 @@ SKILL_ALIASES = {
     "rest api": {"rest api", "rest"},
     "graphql": {"graphql"},
     "spacy": {"spacy"},
+    "huggingface": {"huggingface", "hugging face", "hf"},
+    "transformers": {"transformers", "transformer"},
+    "bert": {"bert", "bert-base", "bert base"},
+    "gpt": {"gpt", "gpt-3", "gpt-4", "llm", "large language model", "large language models"},
+    "chatbot": {"chatbot", "chatbots", "conversational ai"},
+    "text preprocessing": {"text preprocessing", "text pre processing", "text-preprocessing", "preprocessing"},
+    "embeddings": {"embedding", "embeddings", "sentence embeddings"},
+    "named entity recognition": {"named entity recognition", "ner"},
 }
 
 # Build reverse mapping for faster lookup
@@ -95,6 +108,25 @@ NORMALIZED_SKILLS = {}
 for canonical, aliases in SKILL_ALIASES.items():
     for alias in aliases:
         NORMALIZED_SKILLS[alias] = canonical
+
+# Include ontology parent/child terms so NLP terms can be parsed even when not in aliases.
+for parent_skill, skill_data in SKILL_ONTOLOGY.items():
+    NORMALIZED_SKILLS.setdefault(parent_skill.lower(), parent_skill.lower())
+    for child_skill in skill_data.get("children", []):
+        child_norm = child_skill.lower().strip()
+        NORMALIZED_SKILLS.setdefault(child_norm, child_norm)
+
+
+def _extract_known_terms(text: str) -> Set[str]:
+    """Extract known multi-word and single-word terms from normalized lookup."""
+    text_clean = clean_text(text)
+    found = set()
+    for term, canonical in NORMALIZED_SKILLS.items():
+        escaped = re.escape(term)
+        pattern = rf"(?:^|\s){escaped}(?:\s|$)"
+        if re.search(pattern, text_clean):
+            found.add(canonical)
+    return found
 
 
 def clean_text(text: str) -> str:
@@ -156,7 +188,7 @@ def extract_skills_from_text(text: str) -> List[str]:
     text_clean = clean_text(text)
     found_skills = set()
     
-    # Check for each skill using word boundaries
+    # Check for each alias using boundaries
     for canonical, aliases in SKILL_ALIASES.items():
         for alias in aliases:
             # Escape special chars for regex
@@ -166,6 +198,9 @@ def extract_skills_from_text(text: str) -> List[str]:
             if re.search(pattern, text_clean):
                 found_skills.add(canonical)
                 break  # Found this canonical skill, move to next
+
+    # Also include ontology-backed terms (e.g., bert, transformers, chatbot)
+    found_skills.update(_extract_known_terms(text_clean))
     
     return sorted(list(found_skills))
 
@@ -206,24 +241,30 @@ class SkillExtractor:
         if not req_text.strip():
             return []
         
-        # Try comma-separated first
-        parts = re.split(r"[,;|]|\n", req_text)
-        skills_from_csv = []
+        # Split by common delimiters but do not keep full phrases as skills.
+        parts = re.split(r"[,;|]|\n|\u2022|-\s+", req_text)
+        extracted = set()
+
         for part in parts:
             part_clean = clean_text(part).strip()
-            if part_clean and len(part_clean) > 2:
-                # If it looks like a skill (has common tech chars or is long)
-                if any(c in part_clean for c in ['+', '#', '.']) or len(part_clean) > 5:
-                    normalized = normalize_skill(part_clean)
-                    if normalized:
-                        skills_from_csv.append(normalized)
-        
-        # Also extract using pattern matching
-        skills_from_patterns = extract_skills_from_text(req_text)
-        
-        # Combine and deduplicate
-        all_skills = list(set(skills_from_csv + skills_from_patterns))
-        return sorted(all_skills)
+            if not part_clean:
+                continue
+
+            # Pull known skills/terms from each requirement fragment.
+            extracted.update(extract_skills_from_text(part_clean))
+            extracted.update(_extract_known_terms(part_clean))
+
+            # Keep direct normalized value only if known (prevents fake long phrase skills).
+            direct = normalize_skill(part_clean)
+            if direct in set(NORMALIZED_SKILLS.values()):
+                extracted.add(direct)
+
+        # Fallback: scan entire requirements block for known terms.
+        if not extracted:
+            extracted.update(extract_skills_from_text(req_text))
+            extracted.update(_extract_known_terms(req_text))
+
+        return sorted(extracted)
     
     def evaluate_skills(
         self, 

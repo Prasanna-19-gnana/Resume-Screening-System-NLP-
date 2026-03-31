@@ -189,6 +189,53 @@ class MLScorerService:
         rule_result["scoring_method"] = "rule_based_fallback"
         return rule_result
     
+    def score_resume(
+        self,
+        resume_text: str,
+        job_description: str,
+        requirements: str
+    ) -> Dict[str, Any]:
+        """
+        Simple score_resume interface for components that don't have parsed resume dict.
+        Converts simple text inputs into the format needed by score_candidate.
+        
+        Args:
+            resume_text: Raw resume text
+            job_description: Raw job description text
+            requirements: Requirements string
+        
+        Returns:
+            Dict with score and metadata
+        """
+        
+        # Convert resume text to minimal parsed dict format (score_candidate expects this)
+        parsed_resume_dict = {
+            "summary": resume_text[:500],
+            "skills": resume_text[:200],
+            "experience": resume_text,
+            "education": "",
+            "projects": "",
+            "full_text": resume_text
+        }
+        
+        # Detect job role from requirement or default
+        job_role = requirements.split(",")[0].strip() if requirements else "General"
+        
+        # Call main scoring method
+        result = self.score_candidate(
+            parsed_resume_dict=parsed_resume_dict,
+            job_role=job_role,
+            requirements=requirements,
+            job_description=job_description,
+            resume_semantic_text=resume_text
+        )
+        
+        # Ensure result has 'score' key for compatibility
+        if "final_score" in result and "score" not in result:
+            result["score"] = result["final_score"] * 100  # Convert 0-1 to 0-100
+        
+        return result
+    
     @staticmethod
     def _get_recommendation(score: float) -> str:
         """Get recommendation label from score"""

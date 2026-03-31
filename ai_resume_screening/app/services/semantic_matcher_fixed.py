@@ -57,6 +57,14 @@ class SemanticMatcher:
             logger.error(f"Error computing similarity: {e}")
             return 0.0
     
+    def compute_similarity(self, text1: str, text2: str) -> float:
+        """
+        Simple method to compute similarity between two texts.
+        This is called from debug_pipeline and other components.
+        """
+        self._load_model()
+        return self._compute_cosine(text1, text2)
+    
     def get_sectioned_semantic_similarity(
         self,
         resume_sections: dict,

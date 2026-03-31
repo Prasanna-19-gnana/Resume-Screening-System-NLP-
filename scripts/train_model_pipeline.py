@@ -25,26 +25,25 @@ def train_layer1_role_classifier():
     print(f"Loading Support Dataset: {resume_csv}...")
     df = pd.read_csv(resume_csv)
     
-    # Take a robust sample for fast NLP training locally
-    if len(df) > 2000:
-        df = df.sample(2000, random_state=42)
-        
+    # Removed the 2000 sampling limit! Training on the ENTIRE dataset for maximum detail.
     df = df.dropna(subset=['Resume_str', 'Category'])
     
     X = df['Resume_str']
     y = df['Category']
     
-    print(f"Training on {len(X)} resume samples across {len(y.unique())} categories...")
+    print(f"Training on {len(X)} resume samples across {len(y.unique())} categories for detailed modeling...")
     
-    vectorizer = TfidfVectorizer(max_features=2000, stop_words='english', ngram_range=(1, 2))
+    # Increased max_features massively from 2000 to 10000 and added sublinear_tf to capture nuanced resume vocabularies
+    vectorizer = TfidfVectorizer(max_features=10000, stop_words='english', ngram_range=(1, 3), sublinear_tf=True)
     X_vec = vectorizer.fit_transform(X)
     
-    clf = LogisticRegression(max_iter=1000, class_weight='balanced')
+    # Expanded Logistic Regression for deeper convergence using optimized lbfgs
+    clf = LogisticRegression(max_iter=1000, class_weight='balanced', C=1.5, solver='lbfgs')
     clf.fit(X_vec, y)
     
     joblib.dump(vectorizer, os.path.join(MODELS_DIR, "tfidf_vectorizer.pkl"))
     joblib.dump(clf, os.path.join(MODELS_DIR, "role_classifier.pkl"))
-    print("✅ Successfully trained and saved Layer 1 Models (tfidf_vectorizer.pkl, role_classifier.pkl)")
+    print("✅ Successfully trained and saved HIGH-DETAIL Layer 1 Models (tfidf_vectorizer.pkl, role_classifier.pkl)")
 
 def get_fit_tier(score):
     if score >= 75: return 'good'
